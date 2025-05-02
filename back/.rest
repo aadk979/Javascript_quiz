@@ -1,0 +1,8 @@
+POST http://localhost:3000/api/get-questions
+Content-Type: application/json
+
+{
+  "topics": "Arrays , objects , array operators",
+  "noQuestions": 5,
+  "difficulty": 1
+}
