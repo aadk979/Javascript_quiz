@@ -9,7 +9,7 @@ const PORT = 3000;
 // --- Environment Variables ---
 // It's highly recommended to load sensitive data like API keys from environment variables
 // Example: const API_KEY = process.env.GEMINI_API_KEY;
-const API_KEY = "AIzaSyBOp9hKTIRTs3SGJFqd1YclzMF3cgtppdw"; // Replace with your actual API key or load from env
+const API_KEY = "YOUR_API_KEY"; // Replace with your actual API key or load from env
 
 // --- Middleware ---
 app.use(cors({ origin: "*" })); // Consider restricting origins in production
