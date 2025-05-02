@@ -9,7 +9,7 @@ const PORT = 3000;
 // --- Environment Variables ---
 // It's highly recommended to load sensitive data like API keys from environment variables
 // Example: const API_KEY = process.env.GEMINI_API_KEY;
-const API_KEY = "YOUR_API_KEY"; // Replace with your actual API key or load from env
+const API_KEY = "AIzaSyBOp9hKTIRTs3SGJFqd1YclzMF3cgtppdw"; // Replace with your actual API key or load from env
 
 // --- Middleware ---
 app.use(cors({ origin: "*" })); // Consider restricting origins in production
@@ -28,10 +28,10 @@ app.use(limiter);
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 const generationConfig = {
-    temperature: 0.7, // Adjust creativity vs. factuality
+    temperature: 1, // Adjust creativity vs. factuality
     topK: 1,
     topP: 1,
-    maxOutputTokens: 2048, // Adjust based on expected response size
+    maxOutputTokens: 4000, // Adjust based on expected response size
 };
 
 const safetySettings = [
@@ -106,20 +106,24 @@ async function generateQuestions(
   };
 
   const prompt = `Generate and return exactly ${noQuestions} coding questions about ${topics}.
-Each question must include a codeSnippet, question, and answer.
-Format the output strictly as a JSON array of objects according to the provided schema.
-Use standard JSON string escaping for any special characters within the strings (e.g., \\n for newline, \\t for tab, \\" for quote).
+  Each question must include a codeSnippet, question, and answer.
+  Format the output strictly as a JSON array of objects according to the provided schema.
+  IMPORTANT: Use standard JSON string escaping for any special characters within the strings (e.g., \\n for newline, \\t for tab, \\" for quote).
+  If you are unable to integrate all the topics for the number of questions requested, prioritize more important or complex topics.
+  There is no limit on how long a question can be, but try to be below 30 lines.
+  It is not nessacery each question has to integrate all topics.
+  Use the proper /n and /t for the code snippets to render properly.
 
-- Make the questions diverse and relevant to ${topics}.
-- Code snippets must be valid JavaScript.
-- Questions should be at a ${difficulty} level.
-- The 'answer' field should contain only the expected output value (e.g., a number, string, boolean) without any extra text, explanations, or code formatting. It will be used for direct comparison.
+  - Make the questions diverse and relevant to ${topics}.
+  - Code snippets must be valid JavaScript.
+  - Questions should be at a ${difficulty} level.
+  - The 'answer' field should contain only the expected output value (e.g., a number, string, boolean) without any extra text, explanations, or code formatting. It will be used for direct comparison.
 
-Return ONLY the JSON array.`;
+  Return ONLY the JSON array.`;
 
   try {
     const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash-latest", // Use a specific or latest model
+        model: "gemini-2.0-flash-lite", // Use a specific or latest model
         generationConfig: { ...generationConfig, responseMimeType: "application/json", responseSchema },
         safetySettings,
     });
@@ -159,20 +163,21 @@ async function checkAnswersWithAI(answers) {
 
 
   const prompt = `You are an AI assistant evaluating user answers to coding questions.
-You will receive a JSON array containing coding questions, their correct answers, and the user's submitted answers.
-Analyze each user's answer based on the provided correct answer.
-Determine if the user's answer is correct. Allow for minor variations if the core logic or output is essentially right (e.g., slight formatting differences might be okay, but incorrect values are not). Consider explanations only if they accurately lead to the correct answer.
-Return a JSON array of objects, mirroring the input structure but adding an 'isCorrect' boolean field (true or false) for each question.
-Format the output strictly as a JSON array according to the provided schema.
+  You will receive a JSON array containing coding questions, their correct answers, and the user's submitted answers.
+  Analyze each user's answer based on the provided correct answer.
+  Determine if the user's answer is correct. Allow for minor variations if the core logic or output is essentially right (e.g., slight formatting differences might be okay, but incorrect values are not). Consider explanations only if they accurately lead to the correct answer.
+  Return a JSON array of objects, mirroring the input structure but adding an 'isCorrect' boolean field (true or false) for each question.
+  Format the output strictly as a JSON array according to the provided schema.
+  Allow explanations instead of exact output if applicable and only mark correct if explanation is valid or reasonable.
 
-Example Input Item:
-{ "question": "What is the output?", "codeSnippet": "console.log(1+1)", "correctAnswer": "2", "userAnswer": "The output is 2" }
+  Example Input Item:
+  { "question": "What is the output?", "codeSnippet": "console.log(1+1)", "correctAnswer": "2", "userAnswer": "The output is 2" }
 
-Example Output Item:
-{ "question": "What is the output?", "codeSnippet": "console.log(1+1)", "correctAnswer": "2", "userAnswer": "The output is 2", "isCorrect": true }
+  Example Output Item:
+  { "question": "What is the output?", "codeSnippet": "console.log(1+1)", "correctAnswer": "2", "userAnswer": "The output is 2", "isCorrect": true }
 
 
-Return ONLY the JSON array.`;
+  Return ONLY the JSON array.`;
 
   // Prepare the list for the AI prompt, ensuring field names match the prompt description
   const listForAI = answers.map(item => ({
@@ -186,7 +191,7 @@ Return ONLY the JSON array.`;
 
   try {
     const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash-latest", // Use a model good at instruction following
+        model: "gemini-2.0-flash-lite", // Use a model good at instruction following
         generationConfig: { ...generationConfig, responseMimeType: "application/json", responseSchema },
         safetySettings,
     });
@@ -214,23 +219,20 @@ Return ONLY the JSON array.`;
 app.post("/api/get-questions", async (req, res) => {
   const { noQuestions, topics, difficulty } = req.body;
 
-  if (
-    !noQuestions ||
-    !topics ||
-    typeof noQuestions !== "number" ||
-    noQuestions <= 0 ||
-    typeof topics !== "string" ||
-    topics.trim() === "" ||
-    (difficulty && typeof difficulty !== 'string') // Optional difficulty validation
-  ) {
-    return res.status(400).json({
-      error:
-        "Invalid input: Provide 'noQuestions' (positive number) and 'topics' (non-empty string). 'difficulty' (string) is optional.",
-    });
+  if (!noQuestions || !topics){
+    res.status(400).json({ error: "Invalid input: 'noQuestions' and 'topics' are required." });
+    res.end();
+    return;
   }
 
+  const difficultyList = [
+    "BASIC",
+    "INTERMIDIATE",
+    "DIFFICULT"
+  ]
+
   try {
-    const questions = await generateQuestions(noQuestions, topics, difficulty);
+    const questions = await generateQuestions(noQuestions, topics, difficultyList[difficulty]);
     if (!questions) {
       // Error logged in generateQuestions or parseAIResponse
       return res.status(500).json({ error: "AI response could not be processed or validated." });

@@ -1,0 +1,8 @@
+back/node_modules
+
+front/node_modules
+
+back/.rest
+back/package-lock.json
+
+front/package-lock.json
